@@ -4,17 +4,16 @@ pipeline {
         timeout(time: 60, unit: 'MINUTES')
     }
     agent {
-      node {i
+      node {
         label 'nodejs'
       }
     }
 
     environment {
-        DEV_PROJECT = "alif-arif-metrocom-co-id-books-dev"
-        STAGE_PROJECT = "alif-arif-metrocom-co-id-books-stage"
-        APP_GIT_URL = "https://github.com/titikdua/DO288-apps"
-        NEXUS_SERVER = "http://nexus-common.apps.ap45.prod.nextcle.com/repository/nodejs"
-	//NEXUS_SERVER = "http://nexus-common.apps.cluster.domain.example.com/repository/nodejs"
+        DEV_PROJECT = "youruser-books-dev"
+        STAGE_PROJECT = "youruser-books-stage"
+        APP_GIT_URL = "https://github.com/youruser/DO288-apps"
+        NEXUS_SERVER = "http://nexus-common.apps.cluster.domain.example.com/repository/nodejs"
 
         // DO NOT CHANGE THE GLOBAL VARS BELOW THIS LINE
         APP_NAME = "books"
@@ -27,14 +26,9 @@ pipeline {
             steps {
                 echo '### Installing NPM dependencies ###'
                 sh '''
-                      //  npm config set registry ${NEXUS_SERVER}
-                      //  cd books
-                      //  npm install
-			oc project ${DEV_PROJECT}
-			 oc new-app --as-deployment-config --name books nodejs:12~${APP_GIT_URL} \
- 			--build-env npm_config_registry=${NEXUS_SERVER} \
- 			--context-dir ${APP_NAME}
-			 oc expose svc/${APP_NAME}
+                        npm config set registry ${NEXUS_SERVER}
+                        cd books
+                        npm install
                    '''
             }
         }
@@ -74,11 +68,9 @@ pipeline {
         stage('Wait for S2I build to complete') {
             steps {
                 script {
-                    // openshift.withCluster() {
-                    //    openshift.withProject( "${DEV_PROJECT}" ) {
-                      	openshift.withCluster() {
-			 openshift.tag("${DEV_PROJECT}/books:latest", "${STAGE_PROJECT}/books:stage")
-		            def bc = openshift.selector("bc", "${APP_NAME}")
+                    openshift.withCluster() {
+                        openshift.withProject( "${DEV_PROJECT}" ) {
+                            def bc = openshift.selector("bc", "${APP_NAME}")
                             bc.logs('-f')
                             def builds = bc.related('builds')
                             builds.untilEach(1) {
@@ -129,12 +121,9 @@ pipeline {
 
                 echo '### Creating a new app in Staging ###'
                 sh '''
-                       // oc project ${STAGE_PROJECT}
-                       // oc new-app --name books -i books:stage --as-deployment-config
-                       // oc expose svc/${APP_NAME}
-			oc project ${STAGE_PROJECT}
-			 oc new-app --as-deployment-config --name books -i books:stage
-			 oc expose svc/${APP_NAME}
+                        oc project ${STAGE_PROJECT}
+                        oc new-app --name books -i books:stage --as-deployment-config
+                        oc expose svc/${APP_NAME}
                    '''
             }
         }
@@ -147,17 +136,11 @@ pipeline {
                     routeHost = readFile('routehost').trim()
 
                     openshift.withCluster() {
-                       // openshift.withProject( "${STAGE_PROJECT}" ) {
-                         //   def deployment = openshift.selector("dc", "${APP_NAME}").rollout()
-                          //  openshift.selector("dc", "${APP_NAME}").related('pods').untilEach(1) {
-                            //    return (it.object().status.phase == "Running")
-			openshift.withProject( "${STAGE_PROJECT}" ) {
-			 def deployment = openshift.selector("dc", "${APP_NAME}").rollout()
- 			openshift.selector("dc", "${APP_NAME}").related('pods').untilEach(1) {
-			return (it.object().status.phase == "Running")
-
- }                           
- }
+                        openshift.withProject( "${STAGE_PROJECT}" ) {
+                            def deployment = openshift.selector("dc", "${APP_NAME}").rollout()
+                            openshift.selector("dc", "${APP_NAME}").related('pods').untilEach(1) {
+                                return (it.object().status.phase == "Running")
+                            }
                         }
                         echo "Deployment to Staging env is complete. Access the app at the URL http://${routeHost}."
                     }
